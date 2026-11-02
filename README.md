@@ -15,7 +15,7 @@ It's one Cloudflare Worker, `poietic-meetings`, serving `meetings.poietic.tech`:
 | `/r/<uuid>` | The room. Anyone with the link, up to 6 at once. 404 if the room doesn't exist. |
 | `/ws?room=` | WebSocket to the room's Durable Object. ICE servers, including TURN credentials, arrive in its `welcome`, so only people in the room get them. |
 
-- **Sign-in check** ([src/auth.ts](src/auth.ts)): reads the shared `__Secure-poietic-session` cookie and checks it against `auth.poietic.tech`'s public key using [src/verify.ts](src/verify.ts), copied from poietic-dot-tech. This Worker holds no auth secrets.
+- **Sign-in check** ([src/auth.ts](src/auth.ts)): reads the shared `__Secure-poietic-session` cookie and checks it against `auth.poietic.tech`'s public key using `verifyIdentityToken` from [`@poietic-tech/auth`](https://www.npmjs.com/package/@poietic-tech/auth). This Worker holds no auth secrets.
 - **Rooms** ([src/room.ts](src/room.ts)): one Durable Object per room. It holds up to 6 people, gives each person an ID, and relays `offer`, `answer` and `candidate` messages to the one peer they're addressed to. The server sets the sender's ID itself, so nobody can pose as another peer. The protocol is documented at the top of the file. A room is deleted after 24 hours with nobody in it.
 - **Mesh calls** ([public/mesh.js](public/mesh.js)): every browser connects directly to every other, with a video connection and a chat data channel per person. The newcomer sends the offers. When offers do cross (someone back from a drop, or both sides retrying), the side with the lower ID gives way, and every offer carries an ID its answer echoes, so a late answer can't land on a newer connection. A connection that fails or never comes up is retried with a fresh offer, up to 3 times. Each browser splits a 1.5 Mbps video upload budget across its connections.
 - **Screen sharing** (desktop browsers only; phone browsers can't): **Share screen** sends your screen in place of your camera, with no audio, using `replaceTrack` on each connection's one video slot, so no new offer is needed. Every connection has that slot even without a camera, so anyone can share. While sharing, the upload budget is 2.5 Mbps, with at least 500 kbps per connection, and the screen track favours sharp text. Others see it letterboxed instead of cropped. Stopping, from the button or the browser's own bar, brings the camera back as it was. The page ([app.js](public/app.js)) only uses `MeshCall`'s small interface, so an SFU-backed version can replace it later.
@@ -65,7 +65,7 @@ After changing `wrangler.jsonc`, run `npm run types`.
 
 ## Deployment
 
-**Infrastructure** (DNS, the Worker's existence and the `meetings.poietic.tech/*` route) is owned by OpenTofu in [poietic-dot-tech](https://github.com/benjamin-small/poietic-dot-tech) (`infra/meetings.tf`). **What the Worker serves** is deployed from this repo by GitHub Actions on every push to `main`: `wrangler deploy`, then the TURN secrets.
+**Infrastructure** (DNS, the Worker's existence and the `meetings.poietic.tech/*` route) is owned by OpenTofu in [poietic-dot-tech](https://github.com/poietic-tech/poietic-dot-tech) (`infra/meetings.tf`). **What the Worker serves** is deployed from this repo by GitHub Actions on every push to `main`: `wrangler deploy`, then the TURN secrets.
 
 Repository secrets:
 

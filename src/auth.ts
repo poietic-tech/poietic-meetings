@@ -1,13 +1,15 @@
 // Who is making this request? Answered from the shared poietic session
 // cookie, verified against auth.poietic.tech's public key. This Worker holds
-// no auth secret and can't mint tokens; see src/verify.ts.
+// no auth secret and can't mint tokens; see @poietic-tech/auth.
 
-import { verifyIdentityToken } from "./verify";
-
-export const ISSUER = "https://auth.poietic.tech";
-export const JWKS_URL = `${ISSUER}/.well-known/jwks.json`;
-export const AUDIENCE = "poietic:public";
-export const SESSION_COOKIE = "__Secure-poietic-session";
+import {
+  AUD_PUBLIC,
+  ISSUER,
+  JWKS_URL,
+  SESSION_COOKIE,
+  parseCookies,
+  verifyIdentityToken,
+} from "@poietic-tech/auth";
 
 export interface Caller {
   sub: string;
@@ -17,16 +19,6 @@ export interface Caller {
 interface AuthEnv {
   /** Local development only: see isDevBypass. Never set in production. */
   DEV_AUTH_BYPASS?: string;
-}
-
-export function readCookie(request: Request, name: string): string | null {
-  const header = request.headers.get("cookie") ?? "";
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=");
-    if (eq === -1) continue;
-    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim();
-  }
-  return null;
 }
 
 // The .poietic.tech cookie can't exist on localhost, so local dev needs a way
@@ -43,11 +35,11 @@ export async function authenticate(
   fetchImpl?: typeof fetch,
 ): Promise<Caller | null> {
   if (isDevBypass(request, env)) return { sub: "dev", name: "Local dev" };
-  const token = readCookie(request, SESSION_COOKIE);
+  const token = parseCookies(request.headers.get("cookie"))[SESSION_COOKIE];
   if (!token) return null;
   const claims = await verifyIdentityToken(token, JWKS_URL, {
     issuer: ISSUER,
-    audience: AUDIENCE,
+    audience: AUD_PUBLIC,
     fetchImpl,
   });
   return claims ? { sub: claims.sub, name: claims.name } : null;
